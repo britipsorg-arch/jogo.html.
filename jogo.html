@@ -1,0 +1,282 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AB TRUCK SIMULATOR</title>
+
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #87ceeb;
+    font-family: Arial, sans-serif;
+}
+
+#painel {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    color: white;
+    background: #000b;
+    padding: 12px;
+    border-radius: 10px;
+    z-index: 2;
+}
+
+button {
+    padding: 12px;
+    margin: 4px;
+    border: 0;
+    border-radius: 8px;
+    background: #087cff;
+    color: white;
+    font-weight: bold;
+}
+
+#controles {
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    z-index: 2;
+}
+</style>
+</head>
+
+<body>
+
+<div id="painel">
+    <b>AB GAMES</b><br>
+    AB TRUCK SIMULATOR<br>
+    <span id="velocidade">Velocidade: 0 km/h</span><br>
+    <button onclick="trocarCamera()">TROCAR CÂMERA</button>
+</div>
+
+<div id="controles">
+    <button onpointerdown="virar(-1)" onpointerup="pararDirecao()" onpointerleave="pararDirecao()">⬅️</button>
+    <button onpointerdown="acelerar()" onpointerup="parar()" onpointerleave="parar()">ACELERAR</button>
+    <button onpointerdown="frear()" onpointerup="parar()" onpointerleave="parar()">FREAR</button>
+    <button onpointerdown="virar(1)" onpointerup="pararDirecao()" onpointerleave="pararDirecao()">➡️</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+const cena = new THREE.Scene();
+cena.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(
+    75, window.innerWidth / window.innerHeight, 0.1, 1000
+);
+
+const renderizador = new THREE.WebGLRenderer({antialias:true});
+renderizador.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderizador.domElement);
+
+cena.add(new THREE.HemisphereLight(0xffffff, 0x557755, 2));
+
+const luz = new THREE.DirectionalLight(0xffffff, 2);
+luz.position.set(20, 40, 20);
+cena.add(luz);
+
+// CHÃO
+const chao = new THREE.Mesh(
+    new THREE.PlaneGeometry(300, 300),
+    new THREE.MeshLambertMaterial({color:0x559944})
+);
+chao.rotation.x = -Math.PI / 2;
+cena.add(chao);
+
+// ESTRADA
+const estrada = new THREE.Mesh(
+    new THREE.PlaneGeometry(12, 300),
+    new THREE.MeshLambertMaterial({color:0x333333})
+);
+estrada.rotation.x = -Math.PI / 2;
+estrada.position.y = 0.02;
+cena.add(estrada);
+
+// FAIXAS DA ESTRADA
+for(let z = -140; z < 150; z += 12) {
+    const faixa = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, 0.04, 5),
+        new THREE.MeshBasicMaterial({color:0xffffff})
+    );
+    faixa.position.set(0, 0.06, z);
+    cena.add(faixa);
+}
+
+// CALÇADAS
+for(const lado of [-1, 1]) {
+    const calcada = new THREE.Mesh(
+        new THREE.BoxGeometry(3, 0.2, 300),
+        new THREE.MeshLambertMaterial({color:0xaaaaaa})
+    );
+    calcada.position.set(lado * 7.5, 0.1, 0);
+    cena.add(calcada);
+}
+
+// CASAS E LOJAS
+function construirCasa(x, z, cor, largura=7, altura=5) {
+    const casa = new THREE.Mesh(
+        new THREE.BoxGeometry(largura, altura, 7),
+        new THREE.MeshLambertMaterial({color:cor})
+    );
+    casa.position.set(x, altura/2, z);
+    cena.add(casa);
+
+    const telhado = new THREE.Mesh(
+        new THREE.BoxGeometry(largura+0.5, 0.5, 7.5),
+        new THREE.MeshLambertMaterial({color:0x444444})
+    );
+    telhado.position.set(x, altura+0.2, z);
+    cena.add(telhado);
+}
+
+for(let z=-100; z<=100; z+=18) {
+    construirCasa(-17, z, 0xe2c49b);
+    construirCasa(17, z, 0xd6d6d6);
+}
+
+// ÁRVORES
+function arvore(x,z) {
+    const tronco = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3,0.4,3),
+        new THREE.MeshLambertMaterial({color:0x754321})
+    );
+    tronco.position.set(x,1.5,z);
+    cena.add(tronco);
+
+    const folhas = new THREE.Mesh(
+        new THREE.SphereGeometry(2.2,12,12),
+        new THREE.MeshLambertMaterial({color:0x176b25})
+    );
+    folhas.position.set(x,4,z);
+    cena.add(folhas);
+}
+
+for(let z=-100; z<=100; z+=20) {
+    arvore(-11,z);
+    arvore(11,z);
+}
+
+// CAMINHÃO VERMELHO
+const caminhao = new THREE.Group();
+cena.add(caminhao);
+
+const vermelho = new THREE.MeshLambertMaterial({color:0xc40000});
+const preto = new THREE.MeshLambertMaterial({color:0x111111});
+const vidro = new THREE.MeshLambertMaterial({color:0x75c9e8});
+
+const cabine = new THREE.Mesh(
+    new THREE.BoxGeometry(2.8,2.5,3),
+    vermelho
+);
+cabine.position.set(0,2,0);
+caminhao.add(cabine);
+
+const paraBrisa = new THREE.Mesh(
+    new THREE.BoxGeometry(2.3,0.9,0.08),
+    vidro
+);
+paraBrisa.position.set(0,2.5,1.52);
+caminhao.add(paraBrisa);
+
+const carreta = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2,3,7),
+    new THREE.MeshLambertMaterial({color:0xeeeeee})
+);
+carreta.position.set(0,2,-5);
+caminhao.add(carreta);
+
+// RODAS
+for(const x of [-1.5,1.5]) {
+    for(const z of [-6,-3,0,1]) {
+        const roda = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.65,0.65,0.4,16),
+            preto
+        );
+        roda.rotation.z = Math.PI/2;
+        roda.position.set(x,0.65,z);
+        caminhao.add(roda);
+    }
+}
+
+caminhao.position.set(0,0,30);
+
+let acelerando = false;
+let freando = false;
+let direcao = 0;
+let velocidade = 0;
+let cameraInterior = false;
+
+function acelerar(){acelerando=true;}
+function frear(){freando=true;}
+function parar(){acelerando=false;freando=false;}
+function virar(valor){direcao=valor;}
+function pararDirecao(){direcao=0;}
+
+function trocarCamera(){
+    cameraInterior = !cameraInterior;
+}
+
+window.addEventListener("keydown", e => {
+    if(e.key==="ArrowUp" || e.key==="w") acelerar();
+    if(e.key==="ArrowDown" || e.key==="s") frear();
+    if(e.key==="ArrowLeft" || e.key==="a") virar(-1);
+    if(e.key==="ArrowRight" || e.key==="d") virar(1);
+});
+
+window.addEventListener("keyup", e => {
+    if(["ArrowUp","ArrowDown","w","s"].includes(e.key)) parar();
+    if(["ArrowLeft","ArrowRight","a","d"].includes(e.key)) pararDirecao();
+});
+
+function animar(){
+    requestAnimationFrame(animar);
+
+    if(acelerando) velocidade = Math.min(velocidade+0.08, 1.5);
+    else velocidade *= 0.98;
+
+    if(freando) velocidade = Math.max(velocidade-0.12,0);
+
+    caminhao.position.z -= velocidade;
+    caminhao.rotation.y += direcao * 0.015 * (velocidade+0.3);
+
+    document.getElementById("velocidade").textContent =
+        "Velocidade: " + Math.round(velocidade*60) + " km/h";
+
+    if(cameraInterior) {
+        camera.position.set(
+            caminhao.position.x,
+            caminhao.position.y+2.5,
+            caminhao.position.z+0.5
+        );
+        camera.rotation.set(0,Math.PI,0);
+    } else {
+        camera.position.set(
+            caminhao.position.x,
+            caminhao.position.y+6,
+            caminhao.position.z+12
+        );
+        camera.lookAt(caminhao.position);
+    }
+
+    renderizador.render(cena,camera);
+}
+
+animar();
+
+window.addEventListener("resize",()=>{
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderizador.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+
+</body>
+</html>
